@@ -36,7 +36,7 @@ function SweepBanner({ run }: { run: DiscoveryRun | null }) {
   });
 
   return (
-    <div className="mb-4 bg-white border rounded-lg px-4 py-2 text-sm flex items-center justify-between">
+    <div className="flex-1 bg-white border rounded-lg px-4 py-2 text-sm flex items-center justify-between">
       <span>
         Last sweep: <span className="text-slate-500">{when}</span> — {run.createdLeads} new,{' '}
         {run.updatedLeads} updated, <strong>{run.hotLeads} 🔥 hot</strong> across {run.combosRun} searches
@@ -50,6 +50,7 @@ export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [lastRun, setLastRun] = useState<DiscoveryRun | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sweeping, setSweeping] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -68,6 +69,16 @@ export default function Dashboard() {
     load();
   }, []);
 
+  const getLeads = async () => {
+    setSweeping(true);
+    try {
+      await fetch('/api/discover', { method: 'POST' });
+      await load();
+    } finally {
+      setSweeping(false);
+    }
+  };
+
   const setStatus = async (id: string, status: StatusValue) => {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
     await fetch(`/api/leads/${id}`, {
@@ -77,17 +88,32 @@ export default function Dashboard() {
     });
   };
 
+  const getLeadsButton = (
+    <button
+      onClick={getLeads}
+      disabled={sweeping}
+      className="bg-slate-900 text-white rounded px-4 py-2 text-sm disabled:opacity-50 whitespace-nowrap"
+    >
+      {sweeping ? 'Searching...' : 'Get Leads'}
+    </button>
+  );
+
   if (loading) return <p className="text-slate-500">Loading pipeline...</p>;
 
   if (leads.length === 0) {
     return (
       <div>
-        <SweepBanner run={lastRun} />
+        <div className="flex items-center justify-between mb-4 gap-4">
+          <SweepBanner run={lastRun} />
+          {getLeadsButton}
+        </div>
         <div className="text-center py-20">
-          <p className="text-slate-600 mb-4">No leads yet.</p>
-          <Link href="/search" className="text-blue-600 underline">
-            Find your first batch of leads
-          </Link>
+          <p className="text-slate-600 mb-4">
+            No leads yet. Click "Get Leads" to run a sweep of Google Places for local businesses
+            with no website — or use the <Link href="/search" className="text-blue-600 underline">
+              Find Leads
+            </Link> page to target a specific city/category.
+          </p>
         </div>
       </div>
     );
@@ -95,7 +121,10 @@ export default function Dashboard() {
 
   return (
     <div>
-      <SweepBanner run={lastRun} />
+      <div className="flex items-center justify-between mb-4 gap-4">
+        <SweepBanner run={lastRun} />
+        {getLeadsButton}
+      </div>
       <div className="overflow-x-auto">
       <div className="flex gap-4 min-w-max pb-4">
         {STATUSES.map((status) => {

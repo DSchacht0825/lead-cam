@@ -65,51 +65,34 @@ To search real businesses:
 4. Put it in `.env` as `GOOGLE_PLACES_API_KEY`
 
 Each search/sweep combo (one category in one city) costs exactly one
-Places API request. The daily automated sweep (below) runs 120 combos, so
-budget for roughly 3,600 requests/month — check Google's current Places
-API (New) pricing calculator for what that costs on your account; it
-varies by which fields you request and whether your Cloud billing account
-has a recurring credit.
+Places API request, so cost is directly proportional to how often you
+click "Get Leads" below — nothing runs on a schedule.
 
-## Automated daily sweep
+## Getting leads: the "Get Leads" button
 
-`/api/cron/discover` runs the full `DEFAULT_CATEGORIES` (15 home-service
-trades) × `DEFAULT_CITIES` (8 mid-size US metros, see `lib/discover.ts`)
-grid — 120 combos — in one request, using bounded concurrency so it
-finishes in a few seconds and stays well under Vercel's function time
-limit. Each run is logged to the `DiscoveryRun` table and shown as a
-banner on the dashboard ("Last sweep: ... — 36 new, 9 updated, 40 🔥 hot").
+Click **Get Leads** on the dashboard (`/`) to run the full
+`DEFAULT_CATEGORIES` (15 home-service trades) × `DEFAULT_CITIES` (8
+mid-size US metros, see `lib/discover.ts`) grid — 120 combos — in one
+request. It uses bounded concurrency, so it finishes in a few seconds even
+though it's 120 Places API calls. Each run is logged to the
+`DiscoveryRun` table and shown as a banner on the dashboard ("Last sweep:
+... — 36 new, 9 updated, 40 🔥 hot").
 
-`vercel.json` schedules it once daily via Vercel Cron (13:00 UTC). To wire
-it up on Vercel:
+The `/search` page still exists for a narrower, one-off search (a specific
+city/category/rating threshold) rather than the full default grid.
 
-1. Add `CRON_SECRET` as a Vercel env var (same random value as your local
-   `.env` — generate one with `openssl rand -hex 32`). Vercel Cron Jobs
-   automatically send this back as `Authorization: Bearer <value>` on the
-   requests it triggers, which is how the endpoint tells a real cron
-   trigger apart from a random request to the same URL.
-2. Deploy — Vercel picks up the `crons` config in `vercel.json`
-   automatically.
+**On hitting "50 leads/click":** the first sweep over fresh
+categories/cities finds the most (36-45 in local testing across 120
+combos). Volume will taper on repeat clicks as `place_id` dedup skips
+already-discovered businesses in the same category/city — sustaining a
+high per-click rate long-term means periodically expanding
+`DEFAULT_CATEGORIES`/`DEFAULT_CITIES` in `lib/discover.ts` as the current
+list gets mined out.
 
-**Vercel plan note:** this is designed for the Hobby (free) plan, which
-caps you at 2 cron jobs total — the whole sweep runs as a single job, so
-there's room to add a second one later. Manual testing (or a one-off
-re-run) works without waiting for the schedule:
-
-```bash
-curl "https://your-app.vercel.app/api/cron/discover" \
-  -H "Authorization: Bearer $CRON_SECRET"
-```
-
-Adding `?city=Austin, TX` to that URL scopes a run to one city, useful for
-testing without spending a full sweep's worth of API calls.
-
-**On hitting "50 leads/day":** the first sweep over fresh categories/cities
-finds the most (36-45 in local testing across 120 combos). Daily *new*
-volume will taper as `place_id` dedup skips already-discovered businesses
-in the same category/city — sustaining a high daily rate long-term means
-periodically expanding `DEFAULT_CATEGORIES`/`DEFAULT_CITIES` in
-`lib/discover.ts` as the current list gets mined out.
+There's also an `/api/cron/discover` endpoint (secret-protected via
+`CRON_SECRET`, same sweep logic) left in place in case you want to
+re-enable scheduled runs later via Vercel Cron — it's just not wired up to
+anything automatic right now.
 
 ### Optional: sharper outreach lines via Claude
 
@@ -119,17 +102,18 @@ built-in template. Works fine without it.
 
 ## Using it
 
-1. **Find Leads** (`/search`) — enter a location, comma-separated
-   categories (e.g. `plumber, electrician, mobile detailing`), and
-   rating/review thresholds. Hit "Find Leads". Results are deduplicated by
-   Google's `place_id` and saved straight into the pipeline.
-2. **Pipeline** (`/`) — Kanban board: New Leads → Contacted → Interested →
+1. **Get Leads** (`/`, top right) — one click runs the full default sweep
+   (see above) and drops new/updated leads straight into the pipeline.
+2. **Find Leads** (`/search`) — for a narrower search: a specific location,
+   comma-separated categories, and rating/review thresholds. Results are
+   deduplicated by Google's `place_id` same as the sweep.
+3. **Pipeline** (`/`) — Kanban board: New Leads → Contacted → Interested →
    Demo Built → Appointment → Proposal → Won → Follow-Up. Change a lead's
    stage from the dropdown on its card.
-3. **Lead detail** (`/leads/[id]`) — contact info, score breakdown, the
+4. **Lead detail** (`/leads/[id]`) — contact info, score breakdown, the
    Facebook/Instagram/owner-operated toggles, a generated outreach opening
    line, and a running notes/activity log.
-4. **Export CSV** (top nav) — `Business | Category | City | Phone |
+5. **Export CSV** (top nav) — `Business | Category | City | Phone |
    Facebook | Google rating | Reviews | Website? | Contacted? | Status`,
    sorted by score.
 

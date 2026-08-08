@@ -16,15 +16,51 @@ interface Lead {
   status: StatusValue;
 }
 
+interface DiscoveryRun {
+  createdAt: string;
+  combosRun: number;
+  createdLeads: number;
+  updatedLeads: number;
+  hotLeads: number;
+  error: string | null;
+}
+
+function SweepBanner({ run }: { run: DiscoveryRun | null }) {
+  if (!run) return null;
+
+  const when = new Date(run.createdAt).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  return (
+    <div className="mb-4 bg-white border rounded-lg px-4 py-2 text-sm flex items-center justify-between">
+      <span>
+        Last sweep: <span className="text-slate-500">{when}</span> — {run.createdLeads} new,{' '}
+        {run.updatedLeads} updated, <strong>{run.hotLeads} 🔥 hot</strong> across {run.combosRun} searches
+      </span>
+      {run.error && <span className="text-amber-600 text-xs">{run.error}</span>}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [lastRun, setLastRun] = useState<DiscoveryRun | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const res = await fetch('/api/leads');
-    const json = await res.json();
-    setLeads(json.leads ?? []);
+    const [leadsRes, runsRes] = await Promise.all([
+      fetch('/api/leads'),
+      fetch('/api/discovery-runs'),
+    ]);
+    const leadsJson = await leadsRes.json();
+    const runsJson = await runsRes.json();
+    setLeads(leadsJson.leads ?? []);
+    setLastRun(runsJson.lastRun ?? null);
     setLoading(false);
   };
 
@@ -45,17 +81,22 @@ export default function Dashboard() {
 
   if (leads.length === 0) {
     return (
-      <div className="text-center py-20">
-        <p className="text-slate-600 mb-4">No leads yet.</p>
-        <Link href="/search" className="text-blue-600 underline">
-          Find your first batch of leads
-        </Link>
+      <div>
+        <SweepBanner run={lastRun} />
+        <div className="text-center py-20">
+          <p className="text-slate-600 mb-4">No leads yet.</p>
+          <Link href="/search" className="text-blue-600 underline">
+            Find your first batch of leads
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div>
+      <SweepBanner run={lastRun} />
+      <div className="overflow-x-auto">
       <div className="flex gap-4 min-w-max pb-4">
         {STATUSES.map((status) => {
           const columnLeads = leads.filter((l) => l.status === status);
@@ -96,6 +137,7 @@ export default function Dashboard() {
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

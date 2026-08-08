@@ -62,10 +62,26 @@ export function isDemoMode(): boolean {
   return !process.env.GOOGLE_PLACES_API_KEY;
 }
 
+const FIELD_MASK = [
+  'places.id',
+  'places.displayName',
+  'places.nationalPhoneNumber',
+  'places.rating',
+  'places.userRatingCount',
+  'places.websiteUri',
+  'places.googleMapsUri',
+].join(',');
+
 /**
- * Searches Google Places Text Search for `category near city`, then calls
- * Place Details on each result to check for a website. Returns only
- * businesses that have NO website on file -- that's the whole point.
+ * Searches Places API (New) Text Search for `category in city`. Unlike the
+ * legacy Places API, the field mask can request `websiteUri` directly on
+ * the search call, so this needs exactly ONE request per category/city
+ * combo -- no follow-up Place Details call per candidate. That's roughly a
+ * 20x reduction in API calls (and cost) versus the legacy Text Search +
+ * Details-per-result approach.
+ *
+ * Requires "Places API (New)" enabled in Google Cloud, not just the
+ * legacy "Places API".
  *
  * Falls back to a small canned dataset when GOOGLE_PLACES_API_KEY is unset
  * so the app is usable before you've wired up Google Cloud billing.
@@ -80,42 +96,35 @@ export async function findLeadsWithoutWebsite(
     return DEMO_DATA.map((d) => ({ ...d, category, city }));
   }
 
-  const query = encodeURIComponent(`${category} in ${city}`);
-  const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${apiKey}`;
-  const searchRes = await fetch(searchUrl);
-  const searchJson = await searchRes.json();
+  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': FIELD_MASK,
+    },
+    body: JSON.stringify({ textQuery: `${category} in ${city}` }),
+  });
 
-  if (searchJson.status !== 'OK' && searchJson.status !== 'ZERO_RESULTS') {
-    throw new Error(`Google Places search failed: ${searchJson.status} ${searchJson.error_message ?? ''}`);
+  const json = await res.json();
+
+  if (!res.ok) {
+    throw new Error(`Google Places search failed: ${json.error?.message ?? res.statusText}`);
   }
 
-  const candidates: any[] = searchJson.results ?? [];
-  const results: RawPlace[] = [];
+  const places: any[] = json.places ?? [];
 
-  for (const candidate of candidates) {
-    const placeId = candidate.place_id;
-    const fields = 'name,formatted_phone_number,rating,user_ratings_total,website,url';
-    const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${apiKey}`;
-    const detailsRes = await fetch(detailsUrl);
-    const detailsJson = await detailsRes.json();
-
-    if (detailsJson.status !== 'OK') continue;
-    const d = detailsJson.result;
-
-    if (d.website) continue; // has a website already -- not our target
-
-    results.push({
-      placeId,
-      name: d.name ?? candidate.name,
+  return places
+    .filter((p) => !p.websiteUri)
+    .map((p) => ({
+      placeId: p.id,
+      name: p.displayName?.text ?? 'Unknown',
       category,
       city,
-      phone: d.formatted_phone_number ?? null,
-      rating: d.rating ?? candidate.rating ?? null,
-      reviewCount: d.user_ratings_total ?? candidate.user_ratings_total ?? null,
+      phone: p.nationalPhoneNumber ?? null,
+      rating: p.rating ?? null,
+      reviewCount: p.userRatingCount ?? null,
       hasWebsite: false,
-      googleMapsUrl: d.url ?? null,
-    });
-  }
-
-  return results;
+      googleMapsUrl: p.googleMapsUri ?? null,
+    }));
 }

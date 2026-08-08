@@ -58,14 +58,58 @@ dataset (5 San Diego businesses) so you can try the app immediately.
 
 To search real businesses:
 1. Create/select a project at https://console.cloud.google.com
-2. Enable the **Places API**
+2. Enable **Places API (New)** — not the legacy "Places API". The new API
+   lets a single Text Search request return the `websiteUri` field
+   directly, so `lib/googlePlaces.ts` needs no per-result Details call.
 3. Create an API key under Credentials
 4. Put it in `.env` as `GOOGLE_PLACES_API_KEY`
 
-Note: each search does one Text Search call per category plus one Place
-Details call per candidate result (to check for a website), so cost scales
-with candidates returned, not just categories searched. Google's free
-monthly credit covers a solid amount of prospecting.
+Each search/sweep combo (one category in one city) costs exactly one
+Places API request. The daily automated sweep (below) runs 120 combos, so
+budget for roughly 3,600 requests/month — check Google's current Places
+API (New) pricing calculator for what that costs on your account; it
+varies by which fields you request and whether your Cloud billing account
+has a recurring credit.
+
+## Automated daily sweep
+
+`/api/cron/discover` runs the full `DEFAULT_CATEGORIES` (15 home-service
+trades) × `DEFAULT_CITIES` (8 mid-size US metros, see `lib/discover.ts`)
+grid — 120 combos — in one request, using bounded concurrency so it
+finishes in a few seconds and stays well under Vercel's function time
+limit. Each run is logged to the `DiscoveryRun` table and shown as a
+banner on the dashboard ("Last sweep: ... — 36 new, 9 updated, 40 🔥 hot").
+
+`vercel.json` schedules it once daily via Vercel Cron (13:00 UTC). To wire
+it up on Vercel:
+
+1. Add `CRON_SECRET` as a Vercel env var (same random value as your local
+   `.env` — generate one with `openssl rand -hex 32`). Vercel Cron Jobs
+   automatically send this back as `Authorization: Bearer <value>` on the
+   requests it triggers, which is how the endpoint tells a real cron
+   trigger apart from a random request to the same URL.
+2. Deploy — Vercel picks up the `crons` config in `vercel.json`
+   automatically.
+
+**Vercel plan note:** this is designed for the Hobby (free) plan, which
+caps you at 2 cron jobs total — the whole sweep runs as a single job, so
+there's room to add a second one later. Manual testing (or a one-off
+re-run) works without waiting for the schedule:
+
+```bash
+curl "https://your-app.vercel.app/api/cron/discover" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Adding `?city=Austin, TX` to that URL scopes a run to one city, useful for
+testing without spending a full sweep's worth of API calls.
+
+**On hitting "50 leads/day":** the first sweep over fresh categories/cities
+finds the most (36-45 in local testing across 120 combos). Daily *new*
+volume will taper as `place_id` dedup skips already-discovered businesses
+in the same category/city — sustaining a high daily rate long-term means
+periodically expanding `DEFAULT_CATEGORIES`/`DEFAULT_CITIES` in
+`lib/discover.ts` as the current list gets mined out.
 
 ### Optional: sharper outreach lines via Claude
 
@@ -96,8 +140,8 @@ migration history baselined). To deploy:
 
 1. Import the `lead-cam` GitHub repo into Vercel.
 2. Set env vars in the Vercel project: `DATABASE_URL`, `DIRECT_URL`,
-   `GOOGLE_PLACES_API_KEY`, and optionally `ANTHROPIC_API_KEY` — same
-   values as your local `.env`.
+   `GOOGLE_PLACES_API_KEY`, `CRON_SECRET`, and optionally
+   `ANTHROPIC_API_KEY` — same values as your local `.env`.
 3. Deploy. No build-step changes needed (`prisma generate` runs as part of
    `npm install` via Prisma's postinstall hook).
 4. **Before sharing the URL with anyone**: there's no auth on this app yet.

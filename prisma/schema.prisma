@@ -49,3 +49,15 @@ model Activity {
   message   String
   createdAt DateTime @default(now())
 }
+
+model DiscoveryRun {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  citiesCount     Int
+  categoriesCount Int
+  combosRun       Int
+  createdLeads    Int
+  updatedLeads    Int
+  hotLeads        Int
+  error           String?
+}

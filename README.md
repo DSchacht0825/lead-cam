@@ -82,17 +82,33 @@ built-in template. Works fine without it.
    Facebook | Google rating | Reviews | Website? | Contacted? | Status`,
    sorted by score.
 
-## Moving to Postgres/Supabase
+## Moving to Postgres/Supabase (for the Vercel deploy)
 
-This ships on SQLite for zero-config local use. To move to Supabase:
+Vercel's serverless functions can't persist a local SQLite file, so the
+live deployment needs Postgres. `supabase/schema.sql` already has the exact
+CREATE TABLE statements for this schema (generated via
+`prisma migrate diff`, not hand-written, so it matches the app exactly).
 
-1. Create a Supabase project, grab the Postgres connection string
-2. In `prisma/schema.prisma`, change `provider = "sqlite"` to
-   `provider = "postgresql"` — SQLite has no native enum type, so `status`
-   is stored as a plain string validated against `lib/status.ts`; feel
-   free to reintroduce a real Prisma `enum` for it once on Postgres
-3. Set `DATABASE_URL` in `.env` to the Supabase connection string
-4. `npx prisma migrate dev`
+1. Create a Supabase project.
+2. In the Supabase SQL editor, paste and run `supabase/schema.sql`. That
+   creates the `Lead` and `Activity` tables.
+3. Copy the Supabase connection string (Project Settings → Database →
+   Connection string → URI, "Transaction" pooler mode for serverless).
+4. In `prisma/schema.prisma`, change `provider = "sqlite"` to
+   `provider = "postgresql"`.
+5. Set `DATABASE_URL` to that connection string, both in your local `.env`
+   and as a Vercel environment variable (along with
+   `GOOGLE_PLACES_API_KEY` and optionally `ANTHROPIC_API_KEY`).
+6. Locally, run `npx prisma generate` (no need to `migrate dev` again since
+   the tables already exist from step 2 — but `prisma migrate resolve
+   --applied 0_init` may be needed so Prisma's migration history doesn't
+   try to recreate them; simplest is to delete `prisma/migrations/` and
+   run `npx prisma migrate dev --name init` fresh against the empty
+   Supabase DB instead of pasting the SQL manually).
+
+SQLite has no native enum type, so `status` is stored as a plain string
+validated against `lib/status.ts`. Feel free to reintroduce a real Prisma
+`enum` for it once you're on Postgres full-time.
 
 ## Known limitations (V1)
 

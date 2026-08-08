@@ -3,14 +3,14 @@ generator client {
 }
 
 datasource db {
-  // Swap to "postgresql" + a Supabase connection string to move off SQLite.
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// SQLite has no native enum support in Prisma, so status is a plain string
-// validated against lib/status.ts's STATUSES at the application layer.
-// (Postgres/Supabase does support enums -- reintroduce one if you migrate.)
+// status is a plain string validated against lib/status.ts's STATUSES at
+// the application layer, rather than a Postgres enum, to match the schema
+// exactly as already created in Supabase via supabase/schema.sql.
 model Lead {
   id                String   @id @default(cuid())
   placeId           String   @unique

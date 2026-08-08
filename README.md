@@ -35,12 +35,19 @@ yourself. Takes about 10 seconds per lead.
 
 ## Setup
 
+Runs on Supabase Postgres (see `.env.example` for the connection strings,
+sourced from Supabase's Connect → ORMs → Prisma panel).
+
 ```bash
 npm install
-cp .env.example .env   # already done if you're reading this after the initial build
-npx prisma migrate dev
+cp .env.example .env   # fill in DATABASE_URL / DIRECT_URL from Supabase
+npx prisma generate
 npm run dev
 ```
+
+The `Lead` and `Activity` tables live in Supabase already (see
+`supabase/schema.sql`). If you're pointing at a brand-new, empty Postgres
+database instead, run `npx prisma migrate deploy` to create them.
 
 Open http://localhost:3000.
 
@@ -82,36 +89,30 @@ built-in template. Works fine without it.
    Facebook | Google rating | Reviews | Website? | Contacted? | Status`,
    sorted by score.
 
-## Moving to Postgres/Supabase (for the Vercel deploy)
+## Deploying to Vercel
 
-Vercel's serverless functions can't persist a local SQLite file, so the
-live deployment needs Postgres. `supabase/schema.sql` already has the exact
-CREATE TABLE statements for this schema (generated via
-`prisma migrate diff`, not hand-written, so it matches the app exactly).
+The Supabase side is already set up (tables created from `supabase/schema.sql`,
+migration history baselined). To deploy:
 
-1. Create a Supabase project.
-2. In the Supabase SQL editor, paste and run `supabase/schema.sql`. That
-   creates the `Lead` and `Activity` tables.
-3. Copy the Supabase connection string (Project Settings → Database →
-   Connection string → URI, "Transaction" pooler mode for serverless).
-4. In `prisma/schema.prisma`, change `provider = "sqlite"` to
-   `provider = "postgresql"`.
-5. Set `DATABASE_URL` to that connection string, both in your local `.env`
-   and as a Vercel environment variable (along with
-   `GOOGLE_PLACES_API_KEY` and optionally `ANTHROPIC_API_KEY`).
-6. Locally, run `npx prisma generate` (no need to `migrate dev` again since
-   the tables already exist from step 2 — but `prisma migrate resolve
-   --applied 0_init` may be needed so Prisma's migration history doesn't
-   try to recreate them; simplest is to delete `prisma/migrations/` and
-   run `npx prisma migrate dev --name init` fresh against the empty
-   Supabase DB instead of pasting the SQL manually).
+1. Import the `lead-cam` GitHub repo into Vercel.
+2. Set env vars in the Vercel project: `DATABASE_URL`, `DIRECT_URL`,
+   `GOOGLE_PLACES_API_KEY`, and optionally `ANTHROPIC_API_KEY` — same
+   values as your local `.env`.
+3. Deploy. No build-step changes needed (`prisma generate` runs as part of
+   `npm install` via Prisma's postinstall hook).
+4. **Before sharing the URL with anyone**: there's no auth on this app yet.
+   Add a password gate first (see "Known limitations" below) since the
+   live URL would otherwise let anyone view your leads and trigger paid
+   Google Places API calls.
 
-SQLite has no native enum type, so `status` is stored as a plain string
-validated against `lib/status.ts`. Feel free to reintroduce a real Prisma
-`enum` for it once you're on Postgres full-time.
+`status` is stored as a plain string validated against `lib/status.ts`
+rather than a Postgres enum, so it stays consistent with how the tables
+were originally created.
 
 ## Known limitations (V1)
 
+- **No auth.** Anyone with the deployed URL can view/edit leads and trigger
+  billed Google Places calls. Add a password gate before this is public.
 - Kanban stage changes are dropdown-based, not drag-and-drop.
 - Facebook/Instagram enrichment is manual by design (see above).
 - "Owner-operated" has no reliable automatic signal from the Places API, so

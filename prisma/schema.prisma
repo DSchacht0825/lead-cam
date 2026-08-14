@@ -25,6 +25,10 @@ model Lead {
 
   // Manual/assisted enrichment fields (Facebook scraping violates its ToS,
   // so these are filled in by the user via the "search Facebook" helper link).
+  // Same story for email: these leads have no website to scrape by
+  // definition (findLeadsWithoutWebsite), so it's a "search for it" helper
+  // link + paste-in field rather than an automated finder.
+  email             String?
   facebookUrl       String?
   facebookActive    Boolean  @default(false)
   instagramUrl      String?

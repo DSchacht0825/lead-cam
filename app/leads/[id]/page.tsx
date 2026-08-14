@@ -21,6 +21,7 @@ interface Lead {
   rating: number | null;
   reviewCount: number | null;
   hasWebsite: boolean;
+  email: string | null;
   facebookUrl: string | null;
   facebookActive: boolean;
   instagramUrl: string | null;
@@ -85,6 +86,7 @@ export default function LeadDetail() {
     rating: lead.rating,
     reviewCount: lead.reviewCount,
     phone: lead.phone,
+    email: lead.email,
     facebookUrl: lead.facebookUrl,
     facebookActive: lead.facebookActive,
     ownerOperated: lead.ownerOperated,
@@ -92,6 +94,10 @@ export default function LeadDetail() {
 
   const fbSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(
     `site:facebook.com "${lead.name}" ${lead.city}`
+  )}`;
+
+  const emailSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(
+    `"${lead.name}" ${lead.city} email OR contact`
   )}`;
 
   return (
@@ -110,6 +116,18 @@ export default function LeadDetail() {
         <div>
           <p className="text-slate-500">Phone</p>
           <p>{lead.phone ?? '—'}</p>
+        </div>
+        <div>
+          <p className="text-slate-500">Email</p>
+          <p>
+            {lead.email ? (
+              <a href={`mailto:${lead.email}`} className="text-blue-600 underline">
+                {lead.email}
+              </a>
+            ) : (
+              '—'
+            )}
+          </p>
         </div>
         <div>
           <p className="text-slate-500">Google rating</p>
@@ -133,6 +151,22 @@ export default function LeadDetail() {
 
       <section className="bg-white border rounded-lg p-4 space-y-3 text-sm">
         <h2 className="font-medium">Social / manual enrichment</h2>
+        <p className="text-xs text-slate-500">
+          These leads have no website on file, so there's nothing to auto-scrape an email from —
+          use this search link to find one (their Google/Yelp listing, Facebook page, etc.), then
+          paste it in for cold email outreach.
+        </p>
+        <a href={emailSearchUrl} target="_blank" className="text-blue-600 underline text-xs">
+          Search for {lead.name}'s email →
+        </a>
+        <div>
+          <label className="block text-xs font-medium mb-1">Email</label>
+          <input
+            className="w-full border rounded px-2 py-1"
+            defaultValue={lead.email ?? ''}
+            onBlur={(e) => patch({ email: e.target.value || null })}
+          />
+        </div>
         <p className="text-xs text-slate-500">
           Facebook isn't auto-scraped (against their ToS) — use this search link to find the page,
           then paste the URL in.

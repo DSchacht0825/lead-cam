@@ -3,6 +3,7 @@ export interface ScoreInput {
   rating: number | null;
   reviewCount: number | null;
   phone: string | null;
+  email: string | null;
   facebookUrl: string | null;
   facebookActive: boolean;
   ownerOperated: boolean;
@@ -29,6 +30,7 @@ export function computeScore(input: ScoreInput): ScoreResult {
     add('10-100 reviews', 15);
   }
   if (input.phone) add('Phone available', 10);
+  if (input.email) add('Email available', 10);
   if (input.facebookUrl) add('Facebook page exists', 10);
   if (input.facebookActive) add('Facebook active recently', 10);
   if (input.ownerOperated) add('Owner-operated / local', 5);

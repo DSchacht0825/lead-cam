@@ -80,6 +80,7 @@ export async function searchAndUpsertCategory(
       rating: r.rating,
       reviewCount: r.reviewCount,
       phone: r.phone,
+      email: null,
       facebookUrl: null,
       facebookActive: false,
       ownerOperated: false,

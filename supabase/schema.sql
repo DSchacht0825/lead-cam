@@ -10,6 +10,7 @@ CREATE TABLE "Lead" (
     "rating" DOUBLE PRECISION,
     "reviewCount" INTEGER,
     "hasWebsite" BOOLEAN NOT NULL DEFAULT false,
+    "email" TEXT,
     "facebookUrl" TEXT,
     "facebookActive" BOOLEAN NOT NULL DEFAULT false,
     "instagramUrl" TEXT,

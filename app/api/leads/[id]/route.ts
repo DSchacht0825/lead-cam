@@ -22,6 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     rating: merged.rating,
     reviewCount: merged.reviewCount,
     phone: merged.phone,
+    email: merged.email,
     facebookUrl: merged.facebookUrl,
     facebookActive: merged.facebookActive,
     ownerOperated: merged.ownerOperated,
